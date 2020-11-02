@@ -1,38 +1,29 @@
-from pyspark import SparkContext
 from pyspark.sql import SparkSession
-from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DateType
-import numpy as np
+from pyspark.sql.functions import split, explode, col, regexp_extract, to_date
 
+REGEX = (
+    "(?i)""((?<=[^a-z0-9])((((0?[1-9])|(1[0-2]))|((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)(uary|ruary|ch|il|e|y|ust|tember|tober|ember)?)))([^0-9a-z:])( *)((0?[1-9])|([1-2][0-9])|(3[0-1]))([^0-9a-z:])( *)(([1-2]{1}[0-9]{3})|([1-9][0-9]{0,2}))(?=[^0-9a-z:]))")
 
 if __name__ == "__main__":
     spark = SparkSession.builder.getOrCreate()
+    df = spark.read.format('xml').options(rowTag='page').load(
+        'data/in/All/enwiki-latest-pages-articles-multistream1.xml-p1p30303')
+    # df = spark.read.format('xml').options(rowTag='page').load('data/in/Sample/test.xml')
+    header = df.select('id', 'ns', 'title', 'redirect', 'revision.model', 'revision.format').filter(
+        "redirect is null and ns == 0")
 
-    schema = StructType([
-        StructField('title', StringType(), False),
-        StructField('id', IntegerType(), False),
-        StructField('text', StringType(), False),
-    ])
+    date = df.select('id', 'revision.text._VALUE').filter("redirect is null and ns == 0").withColumn('_VALUE', explode(
+        split(col("_VALUE"), "\n")))
 
-    df = spark.read.format("com.databricks.spark.xml").option("rowTag", "record").load("data/Sample/test.xml", schema=schema)
-    print(df)
-    # sc = SparkContext(master="local[4]")
-    #
-    # lst = np.random.randint(0, 10, 20)
-    # A = sc.parallelize(lst)
-    #
-    # print(type(A))
-    # A.collect()
-    #
-    # print(A.glom().collect())
-    #
-    # sc.stop()
-    # sc = SparkContext
+    # SPLIT INTO SENTENCES
+    date = date.withColumn("Sentence", explode(split(col("_VALUE"), '(?<=[^A-Z])\. (?=[A-Z])')))
 
-    # lines = sc.textFile("test.xml")
+    # EXTRACT DATE FROM SENTENCE
+    date = date.withColumn('Date', regexp_extract(col('_VALUE'), pattern=REGEX, idx=0)).filter("Date != ''")
 
-    # words = lines.flatMap(lambda line: line.split(" "))
-    #
-    # wordCounts = words.countByValue()
-    #
-    # for word, count in wordCounts.items():
-    #     print("{}:{}".format(word, count))
+    # date.show()
+
+    date.write.csv('date.csv', mode='overwrite', header=True)
+
+    # date = date.withColumn('Date', to_date(col("Date")))
+    # date.show()

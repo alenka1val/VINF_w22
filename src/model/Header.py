@@ -2,7 +2,7 @@ import re
 import csv
 from dateutil.parser import parse
 
-REGEX = "((?<=[^0-9a-z])( *)((([0-3]{1}[0-9]{1})([^0-9a-z]))|((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)([^0-9])))([^0-9a-z])( *)((([0-3]{1}[0-9]{1})([^0-9a-z]))|((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)([^0-9])))( *)(([0-9]{4})))"
+REGEX = "((?<=[^a-z0-9])((((0?[1-9])|(1[0-2]))|((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)(uary|ruary|ch|il|e|y|ust|tember|tober|ember)?)))([^0-9a-z:])( *)((0?[1-9])|([1-2][0-9])|(3[0-1]))([^0-9a-z:])( *)(([1-2]{1}[0-9]{3})|([1-9][0-9]{0,2}))(?=[^0-9a-z:]))/gi"
 
 
 class Header:
@@ -39,9 +39,9 @@ class Header:
     def parse_text(self):
 
         header_list = ["Wiki_id", "Date", "Paragraph"]
-        print("Header_id: {}".format(self.id))
-        if self.id == 572:
-            print("now")
+        # print("Header_id: {}".format(self.id))
+        # if self.id == 572:
+        #     print("now")
 
         with open('../data/out/csv/date.csv', 'w', newline='') as dataFile:
 
@@ -53,8 +53,12 @@ class Header:
                 if i == 0:
                     self.append_text(re.findall("{{.*}}", paragraph)[0])
 
-                dates = re.findall(REGEX, paragraph, re.IGNORECASE)
+                    dates = re.findall(REGEX, paragraph, re.IGNORECASE)
 
+                m = 0
                 for date in dates:
-                    dt = parse(date[0])
-                    writer.writerow([self.id, dt.date(), paragraph])
+                    try:
+                        dt = parse(date[0])
+                        writer.writerow([self.id, dt.date(), paragraph])
+                    except:
+                        m += 1
