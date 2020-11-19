@@ -92,13 +92,12 @@ def format_line(x):
 
 
 def parse_data(my_master, my_configuration, my_input_file):
-    # spark = SparkSession.builder.master(my_master).appName("Wikipedia_dates_Valova").config("spark.executor.uri",
-    #                                                                                         my_configuration).getOrCreate()
-    spark = SparkSession.builder.getOrCreate()
+    spark = SparkSession.builder.master(my_master).appName("Wikipedia_dates_Valova").config("spark.executor.uri",
+                                                                                            my_configuration).getOrCreate()
+    # spark = SparkSession.builder.getOrCreate()
 
     # LOAD XML TO DF
-    df = spark.read.format('xml').options(rowTag='page').load(
-        'data/in/All/enwiki-latest-pages-articles-multistream1.xml-p1p30303')
+    df = spark.read.format('xml').options(rowTag='page').load(my_input_file)
 
     # df = spark.read.format('xml').options(rowTag='page').load('data/in/Sample/test.xml')
 
@@ -140,5 +139,5 @@ def parse_data(my_master, my_configuration, my_input_file):
 
 
 if __name__ == "__main__":
-    parse_data("", "", "")
-    # parse_data(sys.argv[1], sys.argv[2], sys.argv[3])
+    # parse_data("", "", "")
+    parse_data(sys.argv[1], sys.argv[2], sys.argv[3])
