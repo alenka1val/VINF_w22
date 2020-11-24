@@ -7,6 +7,10 @@ REGEX = (
     "(?i)""((?<=[^a-z0-9])((((0?[1-9])|(1[0-2]))|((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)(uary|ruary|ch|il|e|y|ust|tember|tober|ember)?)))([^0-9a-z:,])( *)((0?[1-9])|([1-2][0-9])|(3[0-1]))([^0-9a-z:])( *)([1-2]{1}[0-9]{3})(?=[^0-9a-z:]))|((?<=[^a-z0-9])(((0?[1-9])|([1-2][0-9])|(3[0-1]))[^0-9a-z:,])( *)((((0?[1-9])|(1[0-2]))|((jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)(uary|ruary|ch|il|e|y|ust|tember|tober|ember)?)))([^0-9a-z:])( *)([1-2]{1}[0-9]{3}))")
 
 
+def format_link(x):
+    return (int(x[0]), str(x[2]), "https://en.wikipedia.org/wiki/" + str(x[2]))
+
+
 def format_line(x):
     # Found date
     sentence = x[2]  # x[2] is line with sentence
@@ -86,24 +90,31 @@ def format_line(x):
 
     # Date Formatting
     try:
-        return (int(x[0]), str(x[1]), str(x[2]), str(parse(x[3]).date()), str(x[4]), str(sentence))
+        return (int(x[0]), str(x[2]), str(parse(x[3]).date()), str(sentence))
     except:
-        return (int(x[0]), str(x[1]), str(x[2]), "", str(x[4]), str(sentence))
+        return (int(x[0]), str(x[2]), "", str(sentence))
 
 
-def parse_data(my_master, my_configuration, my_input_file):
+def parse_data(my_master, my_configuration, my_input_file, my_output):
     spark = SparkSession.builder.master(my_master).appName("Wikipedia_dates_Valova").config("spark.executor.uri",
                                                                                             my_configuration).getOrCreate()
     # spark = SparkSession.builder.getOrCreate()
 
     # LOAD XML TO DF
     df = spark.read.format('xml').options(rowTag='page').load(my_input_file)
+    # df = spark.read.format('xml').options(rowTag='page').load(
+    #     "data/in/All/enwiki-latest-pages-articles-multistream1.xml-p1p30303")
 
     # df = spark.read.format('xml').options(rowTag='page').load('data/in/Sample/test.xml')
 
     # HEADER
     header = df.select('id', 'ns', 'title', 'redirect', 'revision.model', 'revision.format').filter(
         "redirect is null and ns == 0")
+
+    header = header.rdd.map(format_link).toDF().withColumn("_3", regexp_replace(col("_3"), " ", "_"))
+
+    # header.write.csv("data/out/csv/" + 'header', mode='overwrite', header=False)
+    header.write.csv(my_output + '/header', mode='overwrite', header=False)
 
     # SPLIT TO SECTIONS
     date = df.select('id', 'revision.text._VALUE') \
@@ -130,14 +141,14 @@ def parse_data(my_master, my_configuration, my_input_file):
     date = date.withColumn('Noun', regexp_extract(col('Sentence'), pattern="\[\[[^\]]*]]", idx=0))
 
     # DATE FORMATTING
-    date = date.rdd.map(format_line).toDF().filter("_4 != ''")
+    date = date.rdd.map(format_line).toDF().filter("_4 != ''").withColumn("_4", regexp_replace(col("_4"), "\[|\]|(<*date*>)", ""))
 
     # date.show()
 
     # STORE TO CSV
-    date.write.csv('data/out/csv', mode='overwrite', header=True)
+    date.write.csv(my_output + '/dates', mode='overwrite', header=False)
 
 
 if __name__ == "__main__":
-    # parse_data("", "", "")
-    parse_data(sys.argv[1], sys.argv[2], sys.argv[3])
+    # parse_data("", "", "", "data/out/csv")
+    parse_data(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
